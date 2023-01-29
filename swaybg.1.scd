@@ -19,6 +19,11 @@ these options.
 *-c, --color* <#rrggbb>
 	Set the background color.
 
+*-g, --gravity* <gravity>
+	The gravity, or region, for the background image when using _fill_ mode:
+	_north_, _south_, _east_, _west_, or _center_.
+	Default: _center_. This option depends on the aspect ratio of the image.
+
 *-h, --help*
 	Show help message and quit.
 

@@ -58,6 +58,7 @@ struct swaybg_output_config {
 	const char *image_path;
 	struct swaybg_image *image;
 	enum background_mode mode;
+	enum background_gravity gravity;
 	uint32_t color;
 	struct wl_list link;
 };
@@ -168,8 +169,13 @@ static void render_frame(struct swaybg_output *output, cairo_surface_t *surface)
 		}
 
 		if (surface) {
-			render_background_image(cairo, surface,
-				output->config->mode, buffer_width, buffer_height);
+			if (output->config->gravity != BACKGROUND_GRAVITY_INVALID) {
+				render_background_image(cairo, surface,
+				output->config->mode, output->config->gravity, buffer_width, buffer_height);
+			} else {
+				render_background_image(cairo, surface,
+				output->config->mode, BACKGROUND_GRAVITY_CENTER, buffer_width, buffer_height);
+			}
 		}
 	}
 
@@ -419,6 +425,9 @@ static bool store_swaybg_output_config(struct swaybg_state *state,
 			if (config->color) {
 				oc->color = config->color;
 			}
+			if (config->gravity != BACKGROUND_GRAVITY_INVALID) {
+				oc->gravity = config->gravity;
+			}
 			if (config->mode != BACKGROUND_MODE_INVALID) {
 				oc->mode = config->mode;
 			}
@@ -434,6 +443,7 @@ static void parse_command_line(int argc, char **argv,
 		struct swaybg_state *state) {
 	static struct option long_options[] = {
 		{"color", required_argument, NULL, 'c'},
+		{"gravity", required_argument, NULL, 'g'},
 		{"help", no_argument, NULL, 'h'},
 		{"image", required_argument, NULL, 'i'},
 		{"mode", required_argument, NULL, 'm'},
@@ -446,6 +456,7 @@ static void parse_command_line(int argc, char **argv,
 		"Usage: swaybg <options...>\n"
 		"\n"
 		"  -c, --color            Set the background color.\n"
+		"  -g, --gravity          Set the gravity to use for the image when fill mode is used.\n"
 		"  -h, --help             Show help message and quit.\n"
 		"  -i, --image            Set the image to display.\n"
 		"  -m, --mode             Set the mode to use for the image.\n"
@@ -453,17 +464,20 @@ static void parse_command_line(int argc, char **argv,
 		"  -v, --version          Show the version number and quit.\n"
 		"\n"
 		"Background Modes:\n"
-		"  stretch, fit, fill, center, tile, or solid_color\n";
+		"  stretch, fit, fill, center, tile, or solid_color\n"
+		"Background Gravity:\n"
+		"  north, south, east, west or center\n";
 
 	struct swaybg_output_config *config = calloc(sizeof(struct swaybg_output_config), 1);
 	config->output = strdup("*");
 	config->mode = BACKGROUND_MODE_INVALID;
+	config->gravity = BACKGROUND_GRAVITY_INVALID;
 	wl_list_init(&config->link); // init for safe removal
 
 	int c;
 	while (1) {
 		int option_index = 0;
-		c = getopt_long(argc, argv, "c:hi:m:o:v", long_options, &option_index);
+		c = getopt_long(argc, argv, "c:g:hi:m:o:v", long_options, &option_index);
 		if (c == -1) {
 			break;
 		}
@@ -474,6 +488,12 @@ static void parse_command_line(int argc, char **argv,
 				continue;
 			}
 			config->color = parse_color(optarg);
+			break;
+		case 'g':	 // gravity
+			config->gravity = parse_background_gravity(optarg);
+			if (config->gravity == BACKGROUND_GRAVITY_INVALID) {
+				swaybg_log(LOG_ERROR, "Invalid gravity: %s", optarg);
+			}
 			break;
 		case 'i':  // image
 			config->image_path = optarg;
@@ -492,6 +512,7 @@ static void parse_command_line(int argc, char **argv,
 			config = calloc(sizeof(struct swaybg_output_config), 1);
 			config->output = strdup(optarg);
 			config->mode = BACKGROUND_MODE_INVALID;
+			config->gravity = BACKGROUND_GRAVITY_INVALID;
 			wl_list_init(&config->link);  // init for safe removal
 			break;
 		case 'v':  // version

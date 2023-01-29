@@ -3,6 +3,22 @@
 #include "cairo_util.h"
 #include "log.h"
 
+enum background_gravity parse_background_gravity(const char *gravity) {
+	if (strcmp(gravity, "north") == 0) {
+		return BACKGROUND_GRAVITY_NORTH;
+	} else if (strcmp(gravity, "south") == 0) {
+		return BACKGROUND_GRAVITY_SOUTH;
+	} else if (strcmp(gravity, "east") == 0) {
+		return BACKGROUND_GRAVITY_EAST;
+	} else if (strcmp(gravity, "west") == 0) {
+		return BACKGROUND_GRAVITY_WEST;
+	} else if (strcmp(gravity, "center") == 0) {
+		return BACKGROUND_GRAVITY_CENTER;
+	}
+	swaybg_log(LOG_ERROR, "Unsupported background gravity: %s", gravity);
+	return BACKGROUND_GRAVITY_INVALID;
+}
+
 enum background_mode parse_background_mode(const char *mode) {
 	if (strcmp(mode, "stretch") == 0) {
 		return BACKGROUND_MODE_STRETCH;
@@ -53,7 +69,7 @@ cairo_surface_t *load_background_image(const char *path) {
 }
 
 void render_background_image(cairo_t *cairo, cairo_surface_t *image,
-		enum background_mode mode, int buffer_width, int buffer_height) {
+		enum background_mode mode, enum background_gravity gravity, int buffer_width, int buffer_height) {
 	double width = cairo_image_surface_get_width(image);
 	double height = cairo_image_surface_get_height(image);
 
@@ -72,13 +88,35 @@ void render_background_image(cairo_t *cairo, cairo_surface_t *image,
 		if (window_ratio > bg_ratio) {
 			double scale = (double)buffer_width / width;
 			cairo_scale(cairo, scale, scale);
-			cairo_set_source_surface(cairo, image,
-					0, (double)buffer_height / 2 / scale - height / 2);
+			if (gravity == BACKGROUND_GRAVITY_NORTH ) {
+					cairo_set_source_surface(cairo, image, 0, 0);
+			} else if (gravity == BACKGROUND_GRAVITY_SOUTH) {
+					cairo_set_source_surface(cairo, image, 0,
+						 ((double)buffer_height - scale * height  ) / scale );
+			} else if (gravity == BACKGROUND_GRAVITY_CENTER) {
+					cairo_set_source_surface(cairo, image, 0,
+						 ((double)buffer_height / 2 / scale - height / 2) );
+			} else {
+					swaybg_log(LOG_ERROR, "Unsupported gravity for this ratio. Defaulting to center");
+					cairo_set_source_surface(cairo, image, 0,
+						 ((double)buffer_height / 2 / scale - height / 2) );
+				}
 		} else {
 			double scale = (double)buffer_height / height;
 			cairo_scale(cairo, scale, scale);
-			cairo_set_source_surface(cairo, image,
+			if (gravity == BACKGROUND_GRAVITY_WEST) {
+				cairo_set_source_surface(cairo, image, 0, 0);
+			} else if (gravity == BACKGROUND_GRAVITY_EAST) {
+				cairo_set_source_surface(cairo, image,
+						((double)buffer_width / 2 / scale - width / 2) * 2, 0);
+			} else if (gravity == BACKGROUND_GRAVITY_CENTER) {
+				cairo_set_source_surface(cairo, image,
 					(double)buffer_width / 2 / scale - width / 2, 0);
+			} else {
+				swaybg_log(LOG_ERROR, "Unsupported gravity for this ratio. Defaulting to center");
+				cairo_set_source_surface(cairo, image,
+					(double)buffer_width / 2 / scale - width / 2, 0);
+				}
 		}
 		break;
 	}
